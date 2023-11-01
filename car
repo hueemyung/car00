@@ -79,7 +79,7 @@ always @(state or X) begin
     
     case (state)
 
-    S0 : if(X)
+    S0 : if(X)  // car_on -> next state
     next_state <= S1; 
     else 
     next_state <= S0;
@@ -90,7 +90,7 @@ always @(state or X) begin
     S2 : 
     next_state <= S3;
 
-    S3 : if(X)
+    S3 : if(X)  // car_on -> current state
     next_state <= S3; 
     else 
     next_state <= S4;  

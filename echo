@@ -1,6 +1,37 @@
+/*
+ * Copyright (C) 2009 - 2019 Xilinx, Inc.
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without modification,
+ * are permitted provided that the following conditions are met:
+ *
+ * 1. Redistributions of source code must retain the above copyright notice,
+ *    this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright notice,
+ *    this list of conditions and the following disclaimer in the documentation
+ *    and/or other materials provided with the distribution.
+ * 3. The name of the author may not be used to endorse or promote products
+ *    derived from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR IMPLIED
+ * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT
+ * SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+ * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT
+ * OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING
+ * IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY
+ * OF SUCH DAMAGE.
+ *
+ */
+
 #include <stdio.h>
 #include <string.h>
 
+#include "xgpiops.h"
+#include "platform.h"
+#include "xil_io.h"
 #include "xil_types.h"
 #include "xil_assert.h"
 #include "xparameters.h"
@@ -28,6 +59,20 @@ void print_app_header()
 err_t recv_callback(void *arg, struct tcp_pcb *tpcb,
                                struct pbuf *p, err_t err)
 {
+    static XGpioPs psGpioInstancePtr;
+    XGpioPs_Config * GpioConfigPtr;
+    int xStatus;
+    int LedPinDirection = 1, LedPinNumber = 7;
+    GpioConfigPtr = XGpioPs_LookupConfig(XPAR_PS7_GPIO_0_DEVICE_ID);
+    if(GpioConfigPtr == NULL)
+       return XST_FAILURE;
+    xStatus = XGpioPs_CfgInitialize(&psGpioInstancePtr, GpioConfigPtr, GpioConfigPtr->BaseAddr);
+    if(XST_SUCCESS != xStatus)
+       print("PS GPIO INIT FAILED \n\r");
+    XGpioPs_SetDirectionPin(&psGpioInstancePtr, LedPinNumber, LedPinDirection);
+    XGpioPs_SetOutputEnablePin(&psGpioInstancePtr, LedPinNumber, 1);
+
+
 	/* do not read the packet if we are not in ESTABLISHED state */
 	if (!p) {
 		tcp_close(tpcb);
@@ -40,12 +85,13 @@ err_t recv_callback(void *arg, struct tcp_pcb *tpcb,
 
 	/* echo back the payload */
 	/* in this case, we assume that the payload is < TCP_SND_BUF */
-	if(strcmp("CAR_DETECTED", p->payload)) {
-		Xil_Out32(XPAR_MYIP_TRAFFIC_LIGHT_0_S00_AXI_BASEADDR + 12, 0x00000000);
-
+	if(strcmp("Car_ON", p->payload) == 0) {
+		xil_printf("-------Car Detected--------\n\r");
+        XGpioPs_WritePin(&psGpioInstancePtr, LedPinNumber, 1);
 	}
 	else{
-		Xil_Out32(XPAR_MYIP_TRAFFIC_LIGHT_0_S00_AXI_BASEADDR + 12, 0x00000001);
+		xil_printf("-----No Car Detected------\n\r");
+        XGpioPs_WritePin(&psGpioInstancePtr, LedPinNumber, 0);
 	}
 
 	if (tcp_sndbuf(tpcb) > p->len) {
@@ -55,6 +101,7 @@ err_t recv_callback(void *arg, struct tcp_pcb *tpcb,
 
 	/* free the received pbuf */
 	pbuf_free(p);
+	cleanup_platform();
 
 	return ERR_OK;
 }
